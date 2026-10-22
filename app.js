@@ -25,6 +25,7 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     // React to setting changes and push on a timer; push() no-ops until API ready.
     this.homey.settings.on('set', () => {
       this.startInterval();
+      this.subscribeToChanges();
       this.push();
     });
     this.startInterval();
@@ -84,10 +85,17 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     }
   }
 
+  // Only when opted in: it opens a realtime subscription per device. Turning it
+  // off later leaves the listeners in place until restart; scheduleChangePush ignores them.
   subscribeToChanges() {
+    if (!this.api || !this.pushOnChange() || this.subscribed) return;
+    this.subscribed = true;
     listenForChanges(this.api.devices, () => this.scheduleChangePush())
       .then(() => this.log('Realtime device updates subscribed'))
-      .catch((err) => this.error('Realtime subscribe failed (interval pushes continue):', err.message));
+      .catch((err) => {
+        this.subscribed = false;
+        this.error('Realtime subscribe failed (interval pushes continue):', err.message);
+      });
   }
 
   async onUninit() {
@@ -100,8 +108,7 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     this.interval = this.homey.setInterval(() => this.push(), this.intervalMinutes() * 60_000);
   }
 
-  // One push per burst of device events. A pending push is never pushed back, or a
-  // home that reports every second would never push. Off unless the user opts in.
+  // Never push a pending push back: a home that reports every second would never push.
   scheduleChangePush() {
     if (!this.pushOnChange() || this.changePush) return;
     this.changePush = this.homey.setTimeout(() => {

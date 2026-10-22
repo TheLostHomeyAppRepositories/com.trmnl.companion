@@ -87,6 +87,69 @@ Run them with `node --test test/*.test.js` if you skip npm — `node --test test
 tries to load the directory as a module and reports a failure that has nothing to
 do with the tests.
 
+## Releasing
+
+You need the Homey CLI logged in to an Athom account in the TRMNL organization
+on the [developer portal](https://tools.developer.homey.app). The app belongs to
+the organization, so it is under **My Organizations**, not **My Apps**.
+
+1. Check the build:
+
+   ```
+   npm test
+   homey app validate --level publish
+   ```
+
+   The validator warns that `homey:manager:api` needs a more thorough review.
+   That is expected, since the app reads every device.
+
+2. Prove it on a real Homey. `homey app install` runs the app on the Homey
+   itself. Point the push URL at a small HTTP server on your machine that logs
+   each request body, set the interval to 1 minute and turn on push on change.
+   Timed pushes should land a minute apart, and a changed reading should send
+   one push with the new value within about a minute.
+
+   Avoid `homey app run` for this: it runs the app in Docker on your machine,
+   where it may not reach the Homey API (`Timeout after 10000ms`), and it
+   uninstalls the app when you stop it. Write down the store app's settings
+   first, because the dev install replaces it.
+
+   A sensor that has stopped reporting keeps its old values. Check the reading's
+   `lastUpdated` before you blame the app.
+
+3. Bump the version and write the changelog for Homey owners, not developers.
+   It shows in the App Store.
+
+   ```
+   homey app version patch --changelog "What changed, in words an owner understands."
+   npm version <version> --no-git-tag-version
+   git commit -am "Released <version>"
+   git tag -a v<version> -m <version>
+   git push origin main v<version>
+   ```
+
+   The Homey CLI updates `app.json` and `.homeychangelog.json` only, so keep
+   `package.json` in step yourself.
+
+4. Upload the build:
+
+   ```
+   HOMEY_HEADLESS=1 homey app publish
+   ```
+
+   `HOMEY_HEADLESS=1` skips the prompts and uses the version and changelog you
+   committed. The build arrives in the portal as a draft and reaches no one yet.
+
+5. Open the build page the CLI prints. It compares the build with the live one,
+   so check that only what you meant to change has changed. Press **Publish to
+   Test**, which gives a private install link, then **Submit for
+   Certification** with **Automatically Publish after Approval** ticked. If
+   Athom reviews the build, their reply appears on that page. As a verified
+   author, our updates have gone live straight after submitting.
+
+6. Put the store app back on your test Homey with the settings you wrote down,
+   and watch the build's **Crashes** column for a day or two.
+
 ## Why plain JavaScript
 
 The Homey CLI's TypeScript build can report success while packaging no runnable

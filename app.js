@@ -80,7 +80,10 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     if (!url) return { ok: false, error: 'No push URL set — save one first.' };
     try {
       const api = this.api || (await HomeyAPI.createAppAPI({ homey: this.homey }));
-      const [devices, zones] = await Promise.all([api.devices.getDevices(), api.zones.getZones()]);
+      const [devices, zones] = await Promise.all([
+        api.devices.getDevices({ $cache: false }),
+        api.zones.getZones({ $cache: false }),
+      ]);
       const snapshot = buildSnapshot(devices, zones);
       await pushSnapshot(url, snapshot);
       return { ok: true, deviceCount: snapshot.devices.length };
@@ -121,9 +124,10 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     if (!url) return;
     if (respectGap && this.lastPushAt && Date.now() - this.lastPushAt < MIN_CHANGE_PUSH_GAP_MS) return;
     try {
+      // Once devices.connect() ran, the cached devices never get new capability values.
       const [devices, zones] = await Promise.all([
-        this.api.devices.getDevices(),
-        this.api.zones.getZones(),
+        this.api.devices.getDevices({ $cache: false }),
+        this.api.zones.getZones({ $cache: false }),
       ]);
       const snapshot = buildSnapshot(devices, zones);
       await pushSnapshot(url, snapshot);

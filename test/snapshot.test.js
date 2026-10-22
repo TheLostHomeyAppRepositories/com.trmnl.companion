@@ -55,13 +55,9 @@ test('names an unzoned device rather than leaving the room blank', () => {
 
 test('fetches live device values, not the cached ones', async () => {
   const api = {
-    devices: {
-      getDevices: async ({ $cache = true } = {}) => ({
-        d1: { name: 'Meter', zone: 'z1', capabilitiesObj: { measure_power: { value: $cache ? 10 : 99 } } },
-      }),
-    },
+    devices: { getDevices: async (options) => (options?.$cache === false ? devices : {}) },
     zones: { getZones: async () => zones },
   };
-  const [meter] = (await fetchSnapshot(api)).devices;
-  assert.equal(meter.power, 99);
+  const [lamp] = (await fetchSnapshot(api)).devices;
+  assert.equal(lamp.power, 11);
 });

@@ -62,3 +62,20 @@ test('keeps pushing on the timer when no other push happens', async (t) => {
 
   assert.equal(fetchStub.mock.callCount(), 2);
 });
+
+test('drops a waiting change push when the timed push sends first', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fetchStub = t.mock.method(global, 'fetch', async () => ({ ok: true, status: 200 }));
+  settings.push_on_change = true;
+  t.after(() => { delete settings.push_on_change; });
+  const app = startedApp();
+
+  t.mock.timers.tick(5 * MINUTE - 1000);
+  app.scheduleChangePush();
+  t.mock.timers.tick(1000);
+  await flushPush();
+  t.mock.timers.tick(MINUTE);
+  await flushPush();
+
+  assert.equal(fetchStub.mock.callCount(), 1);
+});

@@ -120,6 +120,8 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
   // Never throws — logs success or failure.
   async push() {
     this.scheduleTimedPush();
+    if (this.changePush) this.homey.clearTimeout(this.changePush);
+    this.changePush = null;
     if (!this.api) return;
     const url = this.homey.settings.get('push_url');
     if (!url) return;

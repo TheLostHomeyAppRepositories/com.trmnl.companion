@@ -3,14 +3,10 @@
 const Homey = require('homey');
 const { fetchSnapshot } = require('./lib/snapshot');
 const { pushSnapshot } = require('./lib/pusher');
+const { listenForChanges, changePushDelay } = require('./lib/changes');
 const { HomeyAPI } = require('homey-api');
 
 const DEFAULT_INTERVAL_MIN = 5;
-const ON_CHANGE_DEBOUNCE_MS = 3000;
-// TRMNL rate-limits this endpoint per hour, so change-driven pushes are floored:
-// a busy home emits device.update every few seconds and would exhaust the hour's
-// allowance in minutes. The timer and the settings-page test push ignore this.
-const MIN_CHANGE_PUSH_GAP_MS = 60_000;
 const INIT_RETRY_MS = 30_000;
 
 // Runs ON the Homey Pro. Reads the home via the local API (no cloud, no OAuth),
@@ -89,16 +85,14 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
   }
 
   subscribeToChanges() {
-    Promise.resolve()
-      .then(() => this.api.devices.connect())
-      .then(() => this.api.devices.on('device.update', () => this.scheduleChangePush()))
+    listenForChanges(this.api.devices, () => this.scheduleChangePush())
       .then(() => this.log('Realtime device updates subscribed'))
       .catch((err) => this.error('Realtime subscribe failed (interval pushes continue):', err.message));
   }
 
   async onUninit() {
     if (this.interval) this.homey.clearInterval(this.interval);
-    if (this.debounce) this.homey.clearTimeout(this.debounce);
+    if (this.changePush) this.homey.clearTimeout(this.changePush);
   }
 
   startInterval() {
@@ -106,19 +100,21 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     this.interval = this.homey.setInterval(() => this.push(), this.intervalMinutes() * 60_000);
   }
 
-  // Coalesce bursts of device events into a single push. Off unless the user opts in.
+  // One push per burst of device events. A pending push is never pushed back, or a
+  // home that reports every second would never push. Off unless the user opts in.
   scheduleChangePush() {
-    if (!this.pushOnChange()) return;
-    if (this.debounce) this.homey.clearTimeout(this.debounce);
-    this.debounce = this.homey.setTimeout(() => this.push({ respectGap: true }), ON_CHANGE_DEBOUNCE_MS);
+    if (!this.pushOnChange() || this.changePush) return;
+    this.changePush = this.homey.setTimeout(() => {
+      this.changePush = null;
+      this.push();
+    }, changePushDelay(this.lastPushAt));
   }
 
   // Never throws — logs success or failure.
-  async push({ respectGap = false } = {}) {
+  async push() {
     if (!this.api) return;
     const url = this.homey.settings.get('push_url');
     if (!url) return;
-    if (respectGap && this.lastPushAt && Date.now() - this.lastPushAt < MIN_CHANGE_PUSH_GAP_MS) return;
     try {
       const snapshot = await fetchSnapshot(this.api);
       await pushSnapshot(url, snapshot);

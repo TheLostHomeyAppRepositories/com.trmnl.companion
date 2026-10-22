@@ -31,5 +31,8 @@
   },
   "0.4.6": {
     "en": "Enlarged the app icon to fill its canvas."
+  },
+  "0.4.7": {
+    "en": "Your screen now shows current readings instead of the readings from when the app started. Push on change now reacts to new readings, and each change sends one push instead of two."
   }
 }

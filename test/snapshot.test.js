@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildSnapshot } = require('../lib/snapshot');
+const { buildSnapshot, fetchSnapshot } = require('../lib/snapshot');
 
 const devices = {
   d1: {
@@ -51,4 +51,17 @@ test('reports a device with no capabilities at all rather than dropping it', () 
 test('names an unzoned device rather than leaving the room blank', () => {
   const ghost = buildSnapshot(devices, zones).devices.find((device) => device.name === 'Ghost');
   assert.equal(ghost.zone, 'Unzoned');
+});
+
+test('fetches live device values, not the cached ones', async () => {
+  const api = {
+    devices: {
+      getDevices: async ({ $cache = true } = {}) => ({
+        d1: { name: 'Meter', zone: 'z1', capabilitiesObj: { measure_power: { value: $cache ? 10 : 99 } } },
+      }),
+    },
+    zones: { getZones: async () => zones },
+  };
+  const [meter] = (await fetchSnapshot(api)).devices;
+  assert.equal(meter.power, 99);
 });

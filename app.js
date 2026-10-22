@@ -1,7 +1,7 @@
 'use strict';
 
 const Homey = require('homey');
-const { buildSnapshot } = require('./lib/snapshot');
+const { fetchSnapshot } = require('./lib/snapshot');
 const { pushSnapshot } = require('./lib/pusher');
 const { HomeyAPI } = require('homey-api');
 
@@ -80,11 +80,7 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     if (!url) return { ok: false, error: 'No push URL set — save one first.' };
     try {
       const api = this.api || (await HomeyAPI.createAppAPI({ homey: this.homey }));
-      const [devices, zones] = await Promise.all([
-        api.devices.getDevices({ $cache: false }),
-        api.zones.getZones({ $cache: false }),
-      ]);
-      const snapshot = buildSnapshot(devices, zones);
+      const snapshot = await fetchSnapshot(api);
       await pushSnapshot(url, snapshot);
       return { ok: true, deviceCount: snapshot.devices.length };
     } catch (err) {
@@ -124,12 +120,7 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
     if (!url) return;
     if (respectGap && this.lastPushAt && Date.now() - this.lastPushAt < MIN_CHANGE_PUSH_GAP_MS) return;
     try {
-      // Once devices.connect() ran, the cached devices never get new capability values.
-      const [devices, zones] = await Promise.all([
-        this.api.devices.getDevices({ $cache: false }),
-        this.api.zones.getZones({ $cache: false }),
-      ]);
-      const snapshot = buildSnapshot(devices, zones);
+      const snapshot = await fetchSnapshot(this.api);
       await pushSnapshot(url, snapshot);
       this.lastPushAt = Date.now();
       this.log(`push OK ${snapshot.devices.length} devices`);

@@ -38,20 +38,20 @@ function startedApp() {
 }
 
 test('waits a full interval after any push before the timed push', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const fetchStub = t.mock.method(global, 'fetch', async () => ({ ok: true, status: 200 }));
   const app = startedApp();
 
   t.mock.timers.tick(4 * MINUTE);
   await app.push();
-  t.mock.timers.tick(1 * MINUTE);
+  t.mock.timers.tick(MINUTE);
   await flushPush();
 
   assert.equal(fetchStub.mock.callCount(), 1);
 });
 
 test('keeps pushing on the timer when no other push happens', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const fetchStub = t.mock.method(global, 'fetch', async () => ({ ok: true, status: 200 }));
   startedApp();
 

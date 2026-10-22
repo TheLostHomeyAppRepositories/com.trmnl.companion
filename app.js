@@ -24,11 +24,10 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
   async onInit() {
     // React to setting changes and push on a timer; push() no-ops until API ready.
     this.homey.settings.on('set', () => {
-      this.startInterval();
       this.subscribeToChanges();
       this.push();
     });
-    this.startInterval();
+    this.scheduleTimedPush();
 
     this.homey.flow.getActionCard('send_home').registerRunListener(async () => {
       const result = await this.pushNow();
@@ -99,13 +98,14 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
   }
 
   async onUninit() {
-    if (this.interval) this.homey.clearInterval(this.interval);
+    if (this.timedPush) this.homey.clearTimeout(this.timedPush);
     if (this.changePush) this.homey.clearTimeout(this.changePush);
   }
 
-  startInterval() {
-    if (this.interval) this.homey.clearInterval(this.interval);
-    this.interval = this.homey.setInterval(() => this.push(), this.intervalMinutes() * 60_000);
+  // Every push restarts the timer, so a timed push never lands right after a change push.
+  scheduleTimedPush() {
+    if (this.timedPush) this.homey.clearTimeout(this.timedPush);
+    this.timedPush = this.homey.setTimeout(() => this.push(), this.intervalMinutes() * 60_000);
   }
 
   // Never push a pending push back: a home that reports every second would never push.
@@ -119,6 +119,7 @@ module.exports = class TrmnlCompanionApp extends Homey.App {
 
   // Never throws — logs success or failure.
   async push() {
+    this.scheduleTimedPush();
     if (!this.api) return;
     const url = this.homey.settings.get('push_url');
     if (!url) return;

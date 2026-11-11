@@ -1,6 +1,6 @@
 {
   "name": "com.trmnl.companion",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "private": true,
   "main": "app.js",
   "scripts": {
